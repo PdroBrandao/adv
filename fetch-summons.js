@@ -1,3 +1,22 @@
+import { google} from 'googleapis' 
+
+
+const auth  = new google.auth.GoogleAuth({
+    keyFile: 'credentials.json',
+    scopes: 'https://www.googleapis.com/auth/spreadsheets'
+})
+
+const client = await auth.getClient()
+
+const googleSheets = google.sheets({ version: 'v4', auth: client})
+
+const spreadsheetId = '1CnLhImZkeugQRIVDv89fU1lE7l1HltRAx5U95ZglHew'
+
+const metadata = await googleSheets.spreadsheets.get({
+    auth,
+    spreadsheetId
+})
+
 const APIUrl = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const APIModelURL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBSnO2oNTWrpbqeNYhP7YoaN5TrmPuZD3Q";
@@ -35,6 +54,21 @@ const fetchSumons = async (name) => {
   ).then((response) => response.json());
   return request;
 };
+
+function addBusinessDays(startDate, daysToAdd) {
+    let currentDate = new Date(startDate);
+    let addedDays = 0;
+
+    while (addedDays < daysToAdd) {
+        currentDate.setDate(currentDate.getDate() + 1); // Avança um dia
+        let dayOfWeek = currentDate.getDay(); // Obtém o dia da semana (0 = domingo, 6 = sábado)
+
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Se não for sábado (6) nem domingo (0)
+            addedDays++;
+        }
+    }
+    return currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
 
 const handleJsonResponse = (JSONStringRaw) => {
   // Exemplo de JSON Raw
@@ -74,8 +108,15 @@ ${text}\n
 Saída esperada:\n
 {\
   \"tipo_ato\": \"Despacho/Sentença/Outro\",\
-  \"prazo_manifestacao\": \"X dias úteis\",\
-}`;
+  \"prazo_manifestacao\": \x05\,\
+}
+
+O prazo_manifestacao deve SEMPRE ser retornado em DIAS.
+O prazo_manifestacao deve ser preenchido com a quantidade de dias que compõem o prazo da manifestação.
+O prazo_manifestacao deve SEMPRE ser retornado como número, nunca como texto.
+`;
+
+
 
   const request = await fetch(`${APIModelURL}`, {
     method: "POST",
@@ -103,6 +144,9 @@ Saída esperada:\n
   const response = request.candidates[0].content.parts[0].text;
   return handleJsonResponse(response);
 };
+
+
+
 
 const execute = async (name) => {
   console.log(`[LOG] Buscando intimações para: ${name}...`);
@@ -147,4 +191,56 @@ for (const name of namesToSearch) {
 console.log("[LOG] Extração de dados finalizada");
 console.table(finalData, ["length"]);
 
-console.log(finalData);
+for (const name of namesToSearch) {
+    const summonReport = finalData[name]
+    for (const summon of summonReport) {
+        const today = new Date()
+        if(summon.sigla_tribunal === 'TJMG') {
+            if(summon.prazo_manifestacao) {
+                summon['data_esperada_manifestacao'] = addBusinessDays(today, summon.prazo_manifestacao)
+            }
+            else {
+                summon['data_esperada_manifestacao'] = addBusinessDays(today, 15)
+            }
+        }
+        if(summon.sigla_tribunal === 'TRT3') {
+            if(summon.prazo_manifestacao) {
+                summon['data_esperada_manifestacao'] = addBusinessDays(today, summon.prazo_manifestacao)
+            }
+            else {
+                summon['data_esperada_manifestacao'] = addBusinessDays(today, 5)
+            }
+        }
+    }
+}
+
+
+const saveToSheets = async () => {
+    for (const name of namesToSearch) {
+        const summonReport = finalData[name]
+        for (const summon of summonReport) {
+            await googleSheets.spreadsheets.values.append({
+                auth,
+                spreadsheetId,
+                range: 'Dados!A:F',
+                valueInputOption: 'USER_ENTERED',
+                resource: {
+                    values: [
+                        [
+                            summon.id, 
+                            new Date(summon.data_disponibilizacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }), 
+                            summon.sigla_tribunal, 
+                            summon.tipo_comunicacao, 
+                            summon.data_esperada_manifestacao, 
+                            summon.texto 
+                        ]
+                    ]
+                }
+            })
+        }
+    }
+}
+
+
+
+await saveToSheets()
