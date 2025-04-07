@@ -1,8 +1,11 @@
 import { google} from 'googleapis' 
 
+const main = async (event, context) => {
+const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64'))
+
 
 const auth  = new google.auth.GoogleAuth({
-    keyFile: 'credentials.json',
+    credentials,
     scopes: 'https://www.googleapis.com/auth/spreadsheets'
 })
 
@@ -19,7 +22,7 @@ const metadata = await googleSheets.spreadsheets.get({
 
 const APIUrl = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const APIModelURL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBSnO2oNTWrpbqeNYhP7YoaN5TrmPuZD3Q";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCioObNIuHp6iZbwM44OE1SCofnYdfYJzY";
 const finalData = {};
 
 // Params: nomeAdvogado, dataDisponibilizacaoInicio, dataDisponibilizacaoFim
@@ -48,11 +51,17 @@ texto
 
 */
 const fetchSumons = async (name) => {
-  const now = new Date().toDateString();
-  const request = await fetch(
-    `${APIUrl}?nomeAdvogado=${name}&dataDisponibilizacaoInicio=${now}&dataDisponibilizacaoFim=${now}`
-  ).then((response) => response.json());
-  return request;
+  const now = new Date().toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo', // Brazil's timezone
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric' 
+  });
+  const url = `${APIUrl}?nomeAdvogado=${name}&dataDisponibilizacaoInicio=${now}&dataDisponibilizacaoFim=${now}`
+  console.log('[LOG] URL: ', url)
+  const request = await fetch(url).then((response) => response.json());
+  return request
+
 };
 
 function addBusinessDays(startDate, daysToAdd) {
@@ -138,7 +147,7 @@ O prazo_manifestacao deve SEMPRE ser retornado como número, nunca como texto.
       "[ERROR] Modelo retornou erro ao tentar extrair informações",
       request.error
     );
-    return handleJsonResponse("");
+    return {status: 'invalid', response: request.error};
   }
 
   const response = request.candidates[0].content.parts[0].text;
@@ -150,46 +159,52 @@ O prazo_manifestacao deve SEMPRE ser retornado como número, nunca como texto.
 
 const execute = async (name) => {
   console.log(`[LOG] Buscando intimações para: ${name}...`);
+
   const summons = await fetchSumons(name);
 
-  if (summons.status === "success") {
-    console.table({
-      status: summons.status,
-      registros: summons.count,
-    });
+  console.log(summons)
+  
+  if (!summons || !summons.status) {
+    console.error(`[ERROR] API não retornou resposta válida para ${name}.`);
+    return;
+  }
 
-    const items = summons.items;
-    for (const item of items) {
-      const response = await handleText(item.texto);
-      if (response.status === "valid") {
-        console.log("[LOG] Modelo respondeu com JSON Válido");
-        finalData[name].push({
-          id: item.id,
-          data_disponibilizacao: item.data_disponibilizacao,
-          sigla_tribunal: item.siglaTribunal,
-          tipo_comunicacao: item.tipoComunicacao,
-          texto: item.texto,
-          tipo_ato: response.response.tipo_ato,
-          prazo_manifestacao: response.response.prazo_manifestacao,
-        });
-      } else {
-        console.log([
-          "[WARN]: Modelo respondeu com JSON inválido",
-          response.response,
-        ]);
-      }
+  if (summons.status !== "success") {
+    console.warn(`[WARN] Nenhum dado retornado para ${name}.`);
+    return;  // Evita reexecução infinita
+  }
+
+  console.table({ status: summons.status, registros: summons.count });
+
+  const items = summons.items;
+  for (const item of items) {
+    const response = await handleText(item.texto);
+    
+    if (response.status === "valid") {
+      console.log("[LOG] Modelo respondeu com JSON Válido");
+      finalData[name].push({
+        id: item.id,
+        data_disponibilizacao: item.data_disponibilizacao,
+        sigla_tribunal: item.siglaTribunal,
+        tipo_comunicacao: item.tipoComunicacao,
+        texto: item.texto,
+        tipo_ato: response.response.tipo_ato,
+        prazo_manifestacao: response.response.prazo_manifestacao,
+      });
+    } else {
+      console.warn("[WARN]: Modelo respondeu com JSON inválido:", response.response);
     }
-  } else {
-    console.error("[ERROR] Não foi possível obter os dados de intimações");
   }
 };
 
-for (const name of namesToSearch) {
-  await execute(name);
-}
 
-console.log("[LOG] Extração de dados finalizada");
-console.table(finalData, ["length"]);
+const executeAll = async () => {
+  console.log("[LOG] Iniciando busca para todos os nomes...");
+  for (const name of namesToSearch) {
+    await execute(name)
+  }
+  console.log("[LOG] Extração de dados finalizada");
+  console.table(finalData, ["length"]);
 
 for (const name of namesToSearch) {
     const summonReport = finalData[name]
@@ -213,6 +228,8 @@ for (const name of namesToSearch) {
         }
     }
 }
+};
+
 
 
 const saveToSheets = async () => {
@@ -242,5 +259,13 @@ const saveToSheets = async () => {
 }
 
 
-
+await executeAll()
 await saveToSheets()
+}
+
+
+export {
+  main
+}
+
+await main()

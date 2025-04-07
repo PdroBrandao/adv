@@ -2,11 +2,12 @@
   "name": "adv",
   "version": "1.0.0",
   "description": "Sistema automatizado para consulta e extração de intimações do PJE (Processo Judicial Eletrônico) via DJEN.",
-  "main": "fetch-summons.js",
+  "main": "search.js",
   "scripts": {
-    "start": "node fetch-summons.js",
+    "start": "node search.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PdroBrandao/adv.git"
@@ -20,5 +21,8 @@
   "dependencies": {
     "ejs": "^3.1.10",
     "googleapis": "^148.0.0"
+  },
+  "devDependencies": {
+    "serverless-offline": "^14.4.0"
   }
 }
