@@ -13,16 +13,12 @@ export class GoogleSheetsConfig {
         this.sheets = null as unknown as sheets_v4.Sheets;
     }
 
-    public static async getInstance(): Promise<GoogleSheetsConfig> {
-        if (!GoogleSheetsConfig.instance) {
-            GoogleSheetsConfig.instance = new GoogleSheetsConfig();
-            await GoogleSheetsConfig.instance.initialize();
-        }
-        return GoogleSheetsConfig.instance;
-    }
-
     private async initialize(): Promise<void> {
         try {
+            if (!environment.GOOGLE_CREDENTIALS) {
+                throw new Error('GOOGLE_CREDENTIALS não está definido');
+            }
+
             const credentials = JSON.parse(
                 Buffer.from(environment.GOOGLE_CREDENTIALS, 'base64').toString()
             );
@@ -40,6 +36,14 @@ export class GoogleSheetsConfig {
             console.error('Erro ao inicializar Google Sheets:', error);
             throw error;
         }
+    }
+
+    public static async getInstance(): Promise<GoogleSheetsConfig> {
+        if (!GoogleSheetsConfig.instance) {
+            GoogleSheetsConfig.instance = new GoogleSheetsConfig();
+            await GoogleSheetsConfig.instance.initialize();
+        }
+        return GoogleSheetsConfig.instance;
     }
 
     public getAuth(): GoogleAuth {

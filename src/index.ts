@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { IntimacaoService } from './services/intimacaoService';
 import { GoogleSheetsService } from './services/googleSheetsService';
 

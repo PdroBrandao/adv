@@ -18,12 +18,11 @@ export function addBusinessDays(startDate: Date, daysToAdd: number): string {
 }
 
 export function getCurrentDate(): string {
-    return new Date().toLocaleDateString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
+    // Dynamic date for production
+    // return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+    // Static date for testing
+    return new Date('2024-08-27').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function formatDateToBR(date: Date): string {
@@ -32,4 +31,9 @@ export function formatDateToBR(date: Date): string {
         month: '2-digit', 
         year: '2-digit' 
     });
+}
+
+// Nova função para formatar a data para a API
+export function formatDateForAPI(date: Date): string {
+    return date.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
