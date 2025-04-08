@@ -1,39 +1,38 @@
-service: supabase-sheets-sync
+service: adv-intimacoes
 
 frameworkVersion: "4"
 
 plugins:
   - serverless-offline
+  - serverless-esbuild
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: ${env:AWS_REGION}
   environment:
-    # SUPABASE_URL: ${env:SUPABASE_URL}
-    # SUPABASE_KEY: ${env:SUPABASE_KEY}
-    # DYNAMODB_TABLE: ${env:DYNAMODB_TABLE}
-    # GOOGLE_CLIENT_EMAIL: ${env:GOOGLE_CLIENT_EMAIL}
-    # GOOGLE_PRIVATE_KEY: ${env:GOOGLE_PRIVATE_KEY}
-    # USERS_SHEETS_ID: ${env:USERS_SHEETS_ID}
-    # PAYMENTS_SHEETS_ID: ${env:PAYMENTS_SHEETS_ID}
-    # DEPENDENTS_SHEETS_ID: ${env:DEPENDENTS_SHEETS_ID}
-    GOOGLE_CREDENTIALS: ${ssm:GOOGLE_CREDENTIALS, ssm:/GOOGLE_CREDENTIALS, null}
+    GOOGLE_CREDENTIALS: ${ssm:GOOGLE_CREDENTIALS}
+    API_KEY: ${ssm:API_KEY}
+    NODE_ENV: ${opt:stage, 'dev'}
   iamRoleStatements:
     - Effect: Allow
       Action:
         - ssm:GetParameter
         - ssm:GetParameters
         - ssm:GetParameterHistory
-      Resource: "arn:aws:ssm:${self:provider.region}:*:parameter/GOOGLE_CREDENTIALS"
+      Resource: 
+        - "arn:aws:ssm:${self:provider.region}:*:parameter/GOOGLE_CREDENTIALS"
+        - "arn:aws:ssm:${self:provider.region}:*:parameter/API_KEY"
 
 functions:
-  sync:
-    handler: search.main
-    timeout: 30
+  processIntimacoes:
+    handler: dist/index.handler
+    timeout: 300 # 5 minutos
     events:
       - schedule:
-        cron: "0 11-21 ? * 2-6 *"
+          rate: cron(0 11-16 ? * MON-FRI *) # Executa de hora em hora das 8h às 16h em dias úteis
+          enabled: true
+          description: "Processa intimações a cada hora em dias úteis"
 
 custom:
   esbuild:
@@ -44,3 +43,12 @@ custom:
     target: "node18"
     platform: "node"
     concurrency: 10
+
+package:
+  patterns:
+    - "!node_modules/.prisma/**"
+    - "!node_modules/@prisma/**"
+    - "!tests/**"
+    - "!coverage/**"
+    - "!.git/**"
+    - "!README.md"

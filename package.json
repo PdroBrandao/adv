@@ -2,12 +2,20 @@
   "name": "adv",
   "version": "1.0.0",
   "description": "Sistema automatizado para consulta e extração de intimações do PJE (Processo Judicial Eletrônico) via DJEN.",
-  "main": "search.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node search.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node dist/index.js",
+    "start:ts": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage prod",
+    "offline": "serverless offline",
+    "watch": "tsc -w"
   },
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PdroBrandao/adv.git"
@@ -19,10 +27,19 @@
   },
   "homepage": "https://github.com/PdroBrandao/adv#readme",
   "dependencies": {
+    "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
     "googleapis": "^148.0.0"
   },
   "devDependencies": {
-    "serverless-offline": "^14.4.0"
+    "@types/google-spreadsheet": "^4.0.0",
+    "@types/node": "^20.17.30",
+    "rimraf": "^5.0.5",
+    "serverless": "^4.0.0",
+    "serverless-esbuild": "^1.50.0",
+    "serverless-offline": "^14.4.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
   }
 }
