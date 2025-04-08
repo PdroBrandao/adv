@@ -6,7 +6,7 @@ import {
     APIIntimacao,
     JsonValidationResult 
 } from '../types/interfaces';
-import { getCurrentDate, addBusinessDays } from '../utils/dateUtils';
+import { getCurrentDate, addBusinessDays, formatDateForAPI } from '../utils/dateUtils';
 import { handleJsonResponse } from '../utils/jsonUtils';
 import { TribunalType } from '../config/environment';
 import { DgenService } from './dgenService';
@@ -23,8 +23,8 @@ export class IntimacaoService {
     }
 
     private async fetchIntimacoes(nome: string): Promise<IntimacaoResponse> {
-        const now = getCurrentDate();
-        const url = `${environment.API_URL}?nomeAdvogado=${nome}&dataDisponibilizacaoInicio=${now}&dataDisponibilizacaoFim=${now}`;
+        const searchDate = formatDateForAPI(new Date('2024-08-27')); // ou new Date() para data atual
+        const url = `${environment.API_URL}?nomeAdvogado=${nome}&dataInicio=${searchDate}&dataFim=${searchDate}`;
         
         console.log('[LOG] URL: ', url);
         const response = await fetch(url);
