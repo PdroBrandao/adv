@@ -9,6 +9,7 @@ provider:
   name: aws
   runtime: nodejs18.x
   region: sa-east-1
+  profile: adv-intimacoes  # Força usar este perfil
   environment:
     GOOGLE_CREDENTIALS: ${env:GOOGLE_CREDENTIALS} 
     API_KEY:  ${env:API_KEY} 
@@ -49,6 +50,6 @@ functions:
     timeout: 300 # 5 minutos
     events:
       - schedule:
-          rate: rate(1 minute) # cron(*/10 9-11 ? * MON-FRI *) # Executa a cada 10 minutos das 9h às 12h em dias úteis
+          rate: cron(0 9-12 ? * MON-FRI *) # Executa às 9h, 10h, 11h e 12h em dias úteis
           enabled: true
-          description: "Processa intimações a cada 10 minutos em dias úteis"
+          description: "Processa intimações a cada hora (9h, 10h, 11h, 12h) em dias úteis"
