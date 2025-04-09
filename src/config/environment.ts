@@ -21,7 +21,8 @@ export const environment = {
         "Alfredo Ramos Neto",
         "Jussara Emanoely Guimaraes Rodrigues"
     ] as const,
-    IS_DEVELOPMENT: process.env.NODE_ENV === 'development'
+    USE_STATIC_DATE: process.env.NODE_ENV === 'development',
+    STATIC_DATE: '2025-04-04'
 } as const;
 
 // Tipo para os tribunais suportados

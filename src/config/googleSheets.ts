@@ -59,7 +59,7 @@ export class GoogleSheetsConfig {
             await this.sheets.spreadsheets.values.append({
                 auth: this.auth,
                 spreadsheetId: environment.SPREADSHEET_ID,
-                range: 'Dados!A:F',
+                range: 'Dados!A:H',
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values }
             });

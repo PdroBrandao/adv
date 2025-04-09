@@ -1,32 +1,45 @@
-export function addBusinessDays(startDate: Date, daysToAdd: number): string {
-    let currentDate = new Date(startDate);
-    let addedDays = 0;
+import { environment } from "../config/environment";
 
-    while (addedDays < daysToAdd) {
-        currentDate.setDate(currentDate.getDate() + 1);
-        const dayOfWeek = currentDate.getDay();
-
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            addedDays++;
-        }
+// Função central para obter a data de busca
+export function getSearchDate(): string {
+    if (environment.USE_STATIC_DATE) {
+        return environment.STATIC_DATE;
     }
-    return currentDate.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: '2-digit' 
-    });
+    return new Date().toISOString().split('T')[0];
 }
 
 export function getCurrentDate(): string {
-    // Dynamic date for production
-    // return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
-    
-    // Static date for testing
-    return new Date('2024-08-27').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const searchDate = new Date(getSearchDate());
+    return searchDate.toLocaleDateString('pt-BR', { 
+        timeZone: 'America/Sao_Paulo', 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+    });
+}
+
+export function addBusinessDays(startDate: Date, daysToAdd: number): string {
+    // Garantir que a data está no timezone correto
+    let currentDate = new Date(startDate.toISOString().split('T')[0] + 'T00:00:00-03:00');
+    let addedDays = 0;
+
+    while (addedDays < daysToAdd) {
+        const dayOfWeek = currentDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0 = Domingo, 6 = Sábado
+            addedDays++;
+        }
+        
+        if (addedDays < daysToAdd) {
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+    }
+
+    return formatDateToBR(currentDate);
 }
 
 export function formatDateToBR(date: Date): string {
     return date.toLocaleDateString('pt-BR', { 
+        timeZone: 'America/Sao_Paulo',
         day: '2-digit', 
         month: '2-digit', 
         year: '2-digit' 
