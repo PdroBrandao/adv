@@ -6,7 +6,7 @@ import {
     APIIntimacao,
     JsonValidationResult 
 } from '../types/interfaces';
-import { getCurrentDate, addBusinessDays, formatDateForAPI } from '../utils/dateUtils';
+import { getCurrentDate, addBusinessDays, formatDateForAPI, getSearchDate } from '../utils/dateUtils';
 import { handleJsonResponse } from '../utils/jsonUtils';
 import { TribunalType } from '../config/environment';
 import { DgenService } from './dgenService';
@@ -23,12 +23,51 @@ export class IntimacaoService {
     }
 
     private async fetchIntimacoes(nome: string): Promise<IntimacaoResponse> {
-        const searchDate = formatDateForAPI(new Date('2024-08-27')); // ou new Date() para data atual
-        const url = `${environment.API_URL}?nomeAdvogado=${nome}&dataInicio=${searchDate}&dataFim=${searchDate}`;
-        
-        console.log('[LOG] URL: ', url);
-        const response = await fetch(url);
-        return response.json();
+        try {
+            const searchDate = formatDateForAPI(new Date(getSearchDate()));
+            const url = `${environment.API_URL}?nomeAdvogado=${nome}&dataDisponibilizacaoInicio=${searchDate}&dataDisponibilizacaoFim=${searchDate}`;
+            
+            console.log(`[INFO] Buscando intimações - Data: ${searchDate} - Advogado: ${nome}`);
+            
+            // Usando AbortController para implementar timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+
+            const response = await fetch(url, {
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId); // Limpa o timeout se a requisição completar
+
+            // Verifica se a resposta é OK e se o Content-Type é JSON
+            if (!response.ok) {
+                throw new Error(`API retornou status ${response.status}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType?.includes('application/json')) {
+                throw new Error(`API retornou formato inválido: ${contentType}`);
+            }
+
+            const data = await response.json();
+            return data as IntimacaoResponse;
+        } catch (error) {
+            // Tratamento específico para erro de timeout
+            if (error instanceof Error) {
+                if (error.name === 'AbortError') {
+                    console.error(`[ERROR] Timeout ao buscar intimações para ${nome}`);
+                } else {
+                    console.error(`[ERROR] Falha ao buscar intimações para ${nome}:`, error.message);
+                }
+            }
+
+            // Retorna uma resposta vazia mas válida para não quebrar o fluxo
+            return {
+                status: "error",
+                items: [], // Removido o campo 'message' pois não está na interface
+                count: 0 // Adicionado campo 'count'
+            };
+        }
     }
 
     private async analisarTexto(texto: string): Promise<JsonValidationResult<DgenResponse>> {
@@ -36,31 +75,42 @@ export class IntimacaoService {
     }
 
     private calcularDataEsperada(intimacao: Intimacao): void {
-        const today = new Date();
+        // Garantir que a data está no timezone correto e sem horas/minutos/segundos
+        const dataInicioPrazo = new Date(intimacao.data_disponibilizacao.split('T')[0] + 'T00:00:00-03:00');
+        dataInicioPrazo.setDate(dataInicioPrazo.getDate() + 1);
+        
         const tribunal = intimacao.sigla_tribunal as TribunalType;
-        
-        if (!(tribunal in environment.DEFAULT_DEADLINES)) {
-            console.warn(`[WARN] Tribunal ${tribunal} não encontrado nos prazos padrão`);
-            return;
-        }
-        
         const prazoDefault = environment.DEFAULT_DEADLINES[tribunal];
         
         intimacao.data_esperada_manifestacao = addBusinessDays(
-            today,
+            dataInicioPrazo,
             intimacao.prazo_manifestacao || prazoDefault
         );
+        
+        console.log(`[LOG] Cálculo de Datas - Intimação ${intimacao.id}:
+        - Tribunal: ${intimacao.sigla_tribunal}
+        - Data disponibilização: ${intimacao.data_disponibilizacao}
+        - Data início prazo: ${dataInicioPrazo.toISOString()}
+        - Prazo em dias: ${intimacao.prazo_manifestacao || prazoDefault}
+        - Data final calculada: ${intimacao.data_esperada_manifestacao}
+        `);
     }
 
     private mapearIntimacao(item: APIIntimacao, analise: DgenResponse): Intimacao {
+        const tribunal = item.siglaTribunal as TribunalType;
+        const prazoDefault = environment.DEFAULT_DEADLINES[tribunal];
+        
+        // Garantir que estamos usando a data de disponibilização correta
+        const dataDisponibilizacao = item.data_disponibilizacao;
+        
         return {
             id: item.id,
-            data_disponibilizacao: item.data_disponibilizacao,
+            data_disponibilizacao: dataDisponibilizacao, // Usar a data da API diretamente
             sigla_tribunal: item.siglaTribunal,
             tipo_comunicacao: item.tipoComunicacao,
             texto: item.texto,
             tipo_ato: analise.tipo_ato,
-            prazo_manifestacao: analise.prazo_manifestacao
+            prazo_manifestacao: analise.prazo_manifestacao || prazoDefault
         };
     }
 
@@ -68,7 +118,6 @@ export class IntimacaoService {
         console.log(`[LOG] Buscando intimações para: ${nome}...`);
         
         const response = await this.fetchIntimacoes(nome);
-        console.log(response);
         
         if (!response || !response.status) {
             console.error(`[ERROR] API não retornou resposta válida para ${nome}.`);
@@ -80,12 +129,24 @@ export class IntimacaoService {
             return;
         }
 
-        console.table({ status: response.status, registros: response.count });
-
         for (const item of response.items) {
+            const dataDisponibilizacao = new Date(item.data_disponibilizacao + 'T00:00:00-03:00');
+            const dataDesejada = new Date(getSearchDate() + 'T00:00:00-03:00');
+            
+            console.log(`[DEBUG] Intimação ${item.id}:
+            - Data da API: ${item.data_disponibilizacao}
+            - Data após new Date: ${dataDisponibilizacao.toISOString()}`);
+            
+            // 3. Compara as datas (convertendo para YYYY-MM-DD para ignorar horários)
+            if (dataDisponibilizacao.toISOString().split('T')[0] !== dataDesejada.toISOString().split('T')[0]) {
+                console.log(`[LOG] Pulando intimação de ${dataDisponibilizacao.toLocaleDateString()} - fora do período desejado`);
+                continue;
+            }
+
             const analise = await this.analisarTexto(item.texto);
             
             if (analise.status === "valid" && typeof analise.response !== 'string') {
+                console.log("[LOG] Prazo de manifestação:", analise.response.prazo_manifestacao);
                 console.log("[LOG] Modelo respondeu com JSON Válido");
                 const intimacao = this.mapearIntimacao(item, analise.response);
                 this.calcularDataEsperada(intimacao);
@@ -97,16 +158,19 @@ export class IntimacaoService {
     }
 
     public async processarTodasIntimacoes(): Promise<Record<string, Intimacao[]>> {
-        console.log("[LOG] Iniciando busca para todos os nomes...");
-        console.log(this.finalData);
-        
+        console.log('[INFO] Iniciando processamento de intimações');
+    
         for (const nome of environment.NAMES_TO_SEARCH) {
             await this.processarIntimacao(nome);
+            // Log individual por advogado
+            console.log(`[INFO] Advogado: ${nome} - Intimações encontradas: ${this.finalData[nome].length}`);
         }
         
-        console.log("[LOG] Extração de dados finalizada");
-        console.table(this.finalData, ["length"]);
+        const total = Object.values(this.finalData).reduce((acc, arr) => acc + arr.length, 0);
+        console.log(`[INFO] Total de intimações processadas: ${total}`);
         
         return this.finalData;
     }
 }
+
+

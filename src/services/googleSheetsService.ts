@@ -19,15 +19,19 @@ export class GoogleSheetsService {
     }
 
     public async saveIntimacoes(intimacoesPorAdvogado: Record<string, Intimacao[]>): Promise<void> {
-        for (const [_, intimacoes] of Object.entries(intimacoesPorAdvogado)) {
+        for (const [advogado, intimacoes] of Object.entries(intimacoesPorAdvogado)) {
             for (const intimacao of intimacoes) {
+                const dataDisponibilizacao = new Date(intimacao.data_disponibilizacao + 'T00:00:00-03:00');
+                
                 const values = [
                     [
                         intimacao.id,
-                        formatDateToBR(new Date(intimacao.data_disponibilizacao)),
+                        formatDateToBR(dataDisponibilizacao),
                         intimacao.sigla_tribunal,
                         intimacao.tipo_comunicacao,
+                        intimacao.prazo_manifestacao || '',
                         intimacao.data_esperada_manifestacao || '',
+                        advogado,
                         intimacao.texto
                     ]
                 ];
