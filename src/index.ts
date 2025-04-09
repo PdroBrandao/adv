@@ -16,4 +16,16 @@ async function main() {
     }
 }
 
-main();
+export const handler = async (event: any, context: any) => {
+    try {
+        console.log('[INFO] Lambda iniciada - Timestamp:', new Date().toISOString());
+        await main();
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ message: 'Execução concluída com sucesso' })
+        };
+    } catch (error) {
+        console.error('[ERROR] Falha na execução:', error);
+        throw error;
+    }
+};

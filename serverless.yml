@@ -31,7 +31,8 @@ custom:
     exclude: ['aws-sdk']
     target: 'node18'
     platform: 'node'
-    concurrency: 10
+    mainFields: ['module', 'main']
+    outdir: 'dist'
 
 package:
   patterns:
@@ -44,7 +45,7 @@ package:
 
 functions:
   processIntimacoes:
-    handler: dist/index.handler
+    handler: src/index.handler
     timeout: 300 # 5 minutos
     events:
       - schedule:
