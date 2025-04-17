@@ -9,7 +9,15 @@
     "start:deploy": "npm run build && serverless deploy",
     "build": "tsc",
     "clean": "rimraf dist",
-    "prebuild": "npm run clean"
+    "prebuild": "npm run clean",
+    "prisma:seed": "ts-node -r tsconfig-paths/register prisma/seed.ts",
+    "prisma:generate": "npx prisma generate --schema prisma/schema.prisma",
+    "prisma:push": "npx prisma db push --schema prisma/schema.prisma",
+    "prisma:migrate": "npx prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:deploy": "npx prisma migrate deploy --schema prisma/schema.prisma"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
   },
   "repository": {
     "type": "git",
@@ -22,13 +30,16 @@
   },
   "homepage": "https://github.com/PdroBrandao/adv#readme",
   "dependencies": {
+    "@prisma/client": "^6.6.0",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
-    "googleapis": "^148.0.0"
+    "googleapis": "^148.0.0",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
     "@types/google-spreadsheet": "^4.0.0",
     "@types/node": "^20.17.30",
+    "prisma": "^6.6.0",
     "rimraf": "^5.0.5",
     "serverless": "^4.0.0",
     "serverless-esbuild": "^1.50.0",

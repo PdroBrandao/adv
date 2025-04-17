@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo para Advogados
+model Advogado {
+  id        String   @id @default(uuid())
+  nome      String
+  oab       String   @unique // Identificador único do advogado
+  telefone  String // Para notificações WhatsApp
+  ativo     Boolean  @default(true) // Controle de advogados ativos/inativos
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email            String      @unique // Email para Google Calendar
+  googleCalendarId String? // ID do calendário padrão do advogado
+  googleAuth       GoogleAuth? // Relação 1:1 com GoogleAuth
+
+  intimacoes Intimacao[] // Relação com intimações
+  processos  Processo[] // Relação com processos
+}
+
+// Modelo para Processos
+model Processo {
+  id             String   @id @default(uuid())
+  numeroProcesso String   @unique // Número único do processo
+  vara           String // Vara do processo
+  tribunal       String // TRT, TRF, etc
+  status         String // Ativo, Arquivado, etc
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  intimacoes Intimacao[] // Relação com intimações
+  advogados  Advogado[] // Relação many-to-many com advogados
+}
+
+// Modelo para Intimações
+model Intimacao {
+  id             String   @id @default(uuid())
+  processoId     String // FK para Processo
+  advogadoId     String // FK para Advogado
+  dataPublicacao DateTime // Data que saiu no DJEN
+  prazo          Int // Prazo em dias
+  dataLimite     DateTime // Data final do prazo
+  conteudo       String   @db.Text // Texto completo da intimação
+  resumoIA       String?  @db.Text // Resumo gerado pela IA
+  status         String // Pendente, Processado, Notificado, etc
+  googleEventId  String?  @unique // ID do evento no Google Calendar após criado
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  processo    Processo      @relation(fields: [processoId], references: [id])
+  advogado    Advogado      @relation(fields: [advogadoId], references: [id])
+  Notificacao Notificacao[]
+}
+
+// Modelo para Notificações
+model Notificacao {
+  id          String    @id @default(uuid())
+  intimacaoId String // FK para Intimação
+  tipo        String // WhatsApp, Email, etc
+  status      String // Pendente, Enviado, Falha
+  dataEnvio   DateTime? // Quando foi enviado
+  tentativas  Int       @default(0) // Número de tentativas de envio
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  intimacao Intimacao @relation(fields: [intimacaoId], references: [id])
+}
+
+// Modelo para Autenticação Google
+model GoogleAuth {
+  id           String   @id @default(uuid())
+  advogadoId   String   @unique // Cada advogado tem uma única auth
+  accessToken  String // Token de acesso atual
+  refreshToken String // Token para renovar o acesso
+  expiresAt    DateTime // Quando o accessToken expira
+  scope        String // Escopos autorizados
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  advogado Advogado @relation(fields: [advogadoId], references: [id])
+}
+
+model ExecucaoLog {
+  id           String   @id @default(uuid())
+  dataExecucao DateTime @default(now())
+  status       String // SUCESSO, ERRO, PARCIAL
+
+  // Métricas básicas
+  qtdIntimacoes Int @default(0) // Total de intimações encontradas
+  qtdProcessada Int @default(0) // Quantas foram processadas
+
+  // Erro (se houver)
+  erro String? @db.Text
+
+  // Metadados
+  advogado     String // Nome do advogado consultado
+  dataConsulta DateTime // Data que foi consultada no DJEN
+}
+
+model Feriado {
+  id            String   @id @default(uuid())
+  siglaTribunal String
+  data          DateTime
+}
